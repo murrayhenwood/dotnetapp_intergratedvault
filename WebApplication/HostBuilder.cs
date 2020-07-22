@@ -20,12 +20,17 @@ namespace WebApplication
                  {
                      var builtConfig = configBuilder.Build();
 
-                     if (builtConfig["appsettings"] != null)
+                     if (builtConfig["vaultAddress"] != null)
                      {
-                         Console.WriteLine("appsettings found in environment, importing config");
+                         Console.WriteLine("Vault address found in environment, importing config");
 
-                         var memoryFileProvider = new InMemoryFileProvider(builtConfig["appsettings"]);
-                         builtConfig = configBuilder.AddJsonFile(memoryFileProvider, "env_appsettings.json", false, false).Build();
+                         var vaultFileProvider = new VaultFileProvider(
+                             vaultAddress: builtConfig["vaultAddress"],
+                             vaultToken: builtConfig["vaultToken"],
+                             secretPath: builtConfig["secretPath"],
+                             providerPath: builtConfig["providerPath"]);
+
+                         builtConfig = configBuilder.AddJsonFile(vaultFileProvider, "vault_appsettings.json", false, false).Build();
                      }
                  })
                  .UseSerilog((hostBuilderContext, loggerConfiguration) =>
@@ -54,7 +59,7 @@ namespace WebApplication
                  .ConfigureServices((services) =>
                  {
                      services.AddHttpClient();
-                     services.AddHealthChecks().AddCheck("Health Check", () => HealthCheckResult.Healthy($"Application is running", GetData()), tags: new[] { "all" });
+                     services.AddHealthChecks().AddCheck("Health Check", () => HealthCheckResult.Healthy($"Application is running", GetData(services)), tags: new[] { "all" });
                  })
                  .ConfigureWebHostDefaults(webBuilder =>
                  {
@@ -62,7 +67,7 @@ namespace WebApplication
                  });
         }
 
-        private static IReadOnlyDictionary<string, object> GetData()
+        private static IReadOnlyDictionary<string, object> GetData(IServiceCollection services)
         {
             return new Dictionary<string, object>() {
                 { "Environment.MachineName" , Environment.MachineName.ToString() },
@@ -71,6 +76,7 @@ namespace WebApplication
                 { "Environment.WorkingSet" , Environment.WorkingSet.ToString() },
                 { "DateTime.UtcNow" , DateTime.UtcNow.ToString("o") },
                 { "DateTimeOffset.Now" , DateTimeOffset.Now.ToString("o") },
+                { "Message" , services.BuildServiceProvider().GetService<HostBuilderContext>().Configuration.GetSection("message").Value},
             };
         }
     }
